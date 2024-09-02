@@ -1,1 +1,3 @@
 /target
+CombineStagedGitDiffToOutput.ps1
+output.txt
