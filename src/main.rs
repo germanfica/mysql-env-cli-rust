@@ -11,12 +11,12 @@ fn main() {
     }
 
     println!("Ingrese la versión de MySQL que desea configurar (por ejemplo, 8.0.37):");
-    
+
     let mut version = String::new();
     io::stdin()
         .read_line(&mut version)
         .expect("Error al leer la versión");
-    
+
     let version = version.trim();
 
     // Definir los nuevos valores basados en la versión ingresada
@@ -51,7 +51,7 @@ fn update_path_variable(new_bin_dir: &str) -> io::Result<()> {
     let env = hkcu.open_subkey_with_flags("Environment", KEY_READ | KEY_WRITE)?;
 
     let mut path: String = env.get_value("Path")?;
-    
+
     // Si el directorio anterior existe, lo reemplazamos con el nuevo
     let old_bin_dir = PathBuf::from(new_bin_dir);
     if path.contains(&*old_bin_dir.to_string_lossy()) {
