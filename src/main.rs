@@ -52,14 +52,15 @@ fn update_path_variable(new_bin_dir: &str) -> io::Result<()> {
 
     let mut path: String = env.get_value("Path")?;
 
-    // Si el directorio anterior existe, lo reemplazamos con el nuevo
-    let old_bin_dir = PathBuf::from(new_bin_dir);
-    if path.contains(&*old_bin_dir.to_string_lossy()) {
-        path = path.replace(&*old_bin_dir.to_string_lossy(), new_bin_dir);
-    } else {
-        // Si no existe, lo agregamos
-        path = format!("{};{}", path, new_bin_dir);
-    }
+    // Eliminar todas las versiones anteriores de MySQL en el PATH
+    path = path
+        .split(';')
+        .filter(|dir| !dir.contains("mysql-"))
+        .collect::<Vec<_>>()
+        .join(";");
+
+    // Agregar la nueva versión de MySQL al PATH
+    path = format!("{};{}", path, new_bin_dir);
 
     env.set_value("Path", &path)
 }
