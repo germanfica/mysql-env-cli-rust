@@ -78,22 +78,41 @@ fn instalar() {
 }
 
 fn desinstalar() {
-    println!("Desinstalando...");
+    loop {
+        println!("¿Está seguro que desea desinstalar? (y/n):");
 
-    // Borrar las variables de entorno
-    if let Err(e) = delete_environment_variable("MYSQLCLIENT_LIB_DIR") {
-        eprintln!("Error al eliminar MYSQLCLIENT_LIB_DIR: {}", e);
+        let mut confirmacion = String::new();
+        io::stdin()
+            .read_line(&mut confirmacion)
+            .expect("Error al leer la confirmación");
+
+        match confirmacion.trim().to_lowercase().as_str() {
+            "y" => {
+                println!("Desinstalando...");
+
+                // Borrar las variables de entorno
+                if let Err(e) = delete_environment_variable("MYSQLCLIENT_LIB_DIR") {
+                    eprintln!("Error al eliminar MYSQLCLIENT_LIB_DIR: {}", e);
+                }
+
+                if let Err(e) = delete_environment_variable("MYSQLCLIENT_VERSION") {
+                    eprintln!("Error al eliminar MYSQLCLIENT_VERSION: {}", e);
+                }
+
+                if let Err(e) = clean_path_variable() {
+                    eprintln!("Error al limpiar el PATH: {}", e);
+                }
+
+                println!("✅ Variables de entorno eliminadas correctamente.");
+                break;
+            }
+            "n" => {
+                println!("Desinstalación cancelada.");
+                break;
+            }
+            _ => println!("Opción no válida, por favor ingrese 'y' (sí) o 'n' (no)."),
+        }
     }
-
-    if let Err(e) = delete_environment_variable("MYSQLCLIENT_VERSION") {
-        eprintln!("Error al eliminar MYSQLCLIENT_VERSION: {}", e);
-    }
-
-    if let Err(e) = clean_path_variable() {
-        eprintln!("Error al limpiar el PATH: {}", e);
-    }
-
-    println!("✅ Variables de entorno eliminadas correctamente.");
 }
 
 fn set_environment_variable(var: &str, value: &str) -> io::Result<()> {
