@@ -15,7 +15,7 @@ fn main() {
         println!("Seleccione una opción:");
         println!("1. Instalar");
         println!("2. Desinstalar");
-        println!("3. Salir");
+        println!("q. Salir");
 
         let mut option = String::new();
         io::stdin()
@@ -25,7 +25,7 @@ fn main() {
         match option.trim() {
             "1" => instalar(),
             "2" => desinstalar(),
-            "3" => {
+            "q" => {
                 println!("Gracias por usar este CLI. ¡Espero que vuelvas pronto!");
                 break;
             }
@@ -35,40 +35,47 @@ fn main() {
 }
 
 fn instalar() {
-    println!("Ingrese la versión de MySQL que desea configurar (por ejemplo, 8.0.37):");
+    loop {
+        println!("Ingrese la versión de MySQL que desea configurar (por ejemplo, 8.0.37)\no 'q' para regresar al menú principal:");
 
-    let mut version = String::new();
-    io::stdin()
-        .read_line(&mut version)
-        .expect("Error al leer la versión");
+        let mut version = String::new();
+        io::stdin()
+            .read_line(&mut version)
+            .expect("Error al leer la versión");
 
-    let version = version.trim();
+        let version = version.trim();
 
-    // Validar el formato de la versión
-    let re = Regex::new(r"^\d+\.\d+\.\d+$").unwrap();
-    if !re.is_match(version) {
-        eprintln!("Formato de versión no válido. Debe ser en el formato x.x.x");
-        return;
+        if version.eq_ignore_ascii_case("q") {
+            break;
+        }
+
+        // Validar el formato de la versión
+        let re = Regex::new(r"^\d+\.\d+\.\d+$").unwrap();
+        if !re.is_match(version) {
+            eprintln!("Formato de versión no válido. Debe ser en el formato x.x.x");
+            continue;
+        }
+
+        // Definir los nuevos valores basados en la versión ingresada
+        let lib_dir = format!(r"C:\mysql-{}-winx64\lib", version);
+        let bin_dir = format!(r"C:\mysql-{}-winx64\bin", version);
+
+        // Actualizar las variables de entorno en Windows
+        if let Err(e) = set_environment_variable("MYSQLCLIENT_LIB_DIR", &lib_dir) {
+            eprintln!("Error al configurar MYSQLCLIENT_LIB_DIR: {}", e);
+        }
+
+        if let Err(e) = set_environment_variable("MYSQLCLIENT_VERSION", version) {
+            eprintln!("Error al configurar MYSQLCLIENT_VERSION: {}", e);
+        }
+
+        if let Err(e) = update_path_variable(&bin_dir) {
+            eprintln!("Error al actualizar el PATH: {}", e);
+        }
+
+        println!("✅ Variables de entorno actualizadas correctamente.");
+        break;
     }
-
-    // Definir los nuevos valores basados en la versión ingresada
-    let lib_dir = format!(r"C:\mysql-{}-winx64\lib", version);
-    let bin_dir = format!(r"C:\mysql-{}-winx64\bin", version);
-
-    // Actualizar las variables de entorno en Windows
-    if let Err(e) = set_environment_variable("MYSQLCLIENT_LIB_DIR", &lib_dir) {
-        eprintln!("Error al configurar MYSQLCLIENT_LIB_DIR: {}", e);
-    }
-
-    if let Err(e) = set_environment_variable("MYSQLCLIENT_VERSION", version) {
-        eprintln!("Error al configurar MYSQLCLIENT_VERSION: {}", e);
-    }
-
-    if let Err(e) = update_path_variable(&bin_dir) {
-        eprintln!("Error al actualizar el PATH: {}", e);
-    }
-
-    println!("Variables de entorno actualizadas correctamente.");
 }
 
 fn desinstalar() {
@@ -87,7 +94,7 @@ fn desinstalar() {
         eprintln!("Error al limpiar el PATH: {}", e);
     }
 
-    println!("Variables de entorno eliminadas correctamente.");
+    println!("✅ Variables de entorno eliminadas correctamente.");
 }
 
 fn set_environment_variable(var: &str, value: &str) -> io::Result<()> {
