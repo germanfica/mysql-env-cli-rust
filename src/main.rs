@@ -1,6 +1,5 @@
 use regex::Regex;
 use std::io;
-use std::path::PathBuf;
 use winreg::enums::*;
 use winreg::RegKey;
 
