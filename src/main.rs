@@ -3,6 +3,13 @@ use std::io;
 use winreg::enums::*;
 use winreg::RegKey;
 
+const MYSQL_VERSIONS: &[&str] = &[
+    "8.0.0", "8.0.1", "8.0.2", "8.0.11", "8.0.12", "8.0.13", "8.0.14", "8.0.15", "8.0.16",
+    "8.0.17", "8.0.18", "8.0.19", "8.0.20", "8.0.21", "8.0.22", "8.0.23", "8.0.24", "8.0.25",
+    "8.0.26", "8.0.27", "8.0.28", "8.0.29", "8.0.30", "8.0.31", "8.0.32", "8.0.33", "8.0.34",
+    "8.0.35", "8.0.36", "8.0.37", "8.0.39", "8.1.0", "8.1.1", "8.2.0", "8.4.2", "9.0.1",
+];
+
 fn main() {
     // Verificar si el sistema operativo es Windows
     if !cfg!(target_os = "windows") {
@@ -33,47 +40,95 @@ fn main() {
     }
 }
 
+fn select_from_list() -> Option<String> {
+    println!("Seleccione la versión de MySQL de la siguiente lista:");
+    for (i, version) in MYSQL_VERSIONS.iter().enumerate() {
+        println!("{}. {}", i + 1, version);
+    }
+
+    let mut selected = String::new();
+    io::stdin()
+        .read_line(&mut selected)
+        .expect("Error al leer la selección");
+
+    match selected.trim().parse::<usize>() {
+        Ok(index) if index > 0 && index <= MYSQL_VERSIONS.len() => {
+            Some(MYSQL_VERSIONS[index - 1].to_string()) // Convertimos &str a String
+        }
+        _ => {
+            println!("Selección no válida.");
+            None
+        }
+    }
+}
+
+fn enter_version_manually() -> Option<String> {
+    println!("Ingrese la versión de MySQL que desea configurar (por ejemplo, 8.0.37):");
+
+    let mut version = String::new();
+    io::stdin()
+        .read_line(&mut version)
+        .expect("Error al leer la versión");
+
+    let version = version.trim().to_string();
+
+    // Validar el formato de la versión
+    let re = Regex::new(r"^\d+.\d+.\d+$").unwrap();
+    if re.is_match(&version) {
+        Some(version)
+    } else {
+        eprintln!("Formato de versión no válido. Debe ser en el formato x.x.x");
+        None
+    }
+}
+
 fn instalar() {
     loop {
-        println!("Ingrese la versión de MySQL que desea configurar (por ejemplo, 8.0.37)\no 'q' para regresar al menú principal:");
+        println!("¿Desea seleccionar una versión de la lista o ingresar manualmente?");
+        println!("1. Seleccionar de la lista");
+        println!("2. Ingresar manualmente");
+        println!("q. Regresar al menú principal");
 
-        let mut version = String::new();
+        let mut choice = String::new();
         io::stdin()
-            .read_line(&mut version)
-            .expect("Error al leer la versión");
+            .read_line(&mut choice)
+            .expect("Error al leer la opción");
 
-        let version = version.trim();
+        let choice = choice.trim();
 
-        if version.eq_ignore_ascii_case("q") {
+        if choice.eq_ignore_ascii_case("q") {
             break;
         }
 
-        // Validar el formato de la versión
-        let re = Regex::new(r"^\d+\.\d+\.\d+$").unwrap();
-        if !re.is_match(version) {
-            eprintln!("Formato de versión no válido. Debe ser en el formato x.x.x");
-            continue;
+        let version = match choice {
+            "1" => select_from_list(), // el primer valor modifica el retorno // enter_version_manually(),
+            "2" => enter_version_manually(),
+            _ => {
+                println!("Opción no válida, por favor intente de nuevo.");
+                continue;
+            }
+        };
+
+        if let Some(version) = version {
+            let lib_dir = format!(r"C:\mysql-{}-winx64\lib", version);
+            let bin_dir = format!(r"C:\mysql-{}-winx64\bin", version);
+
+            // Actualizar las variables de entorno en Windows
+            if let Err(e) = set_environment_variable("MYSQLCLIENT_LIB_DIR", &lib_dir) {
+                eprintln!("Error al configurar MYSQLCLIENT_LIB_DIR: {}", e);
+            }
+
+            if let Err(e) = set_environment_variable("MYSQLCLIENT_VERSION", &version) {
+                eprintln!("Error al configurar MYSQLCLIENT_VERSION: {}", e);
+            }
+
+            if let Err(e) = update_path_variable(&bin_dir) {
+                eprintln!("Error al actualizar el PATH: {}", e);
+            }
+
+            println!("✅ Variables de entorno actualizadas correctamente.");
+            break;
         }
-
-        // Definir los nuevos valores basados en la versión ingresada
-        let lib_dir = format!(r"C:\mysql-{}-winx64\lib", version);
-        let bin_dir = format!(r"C:\mysql-{}-winx64\bin", version);
-
-        // Actualizar las variables de entorno en Windows
-        if let Err(e) = set_environment_variable("MYSQLCLIENT_LIB_DIR", &lib_dir) {
-            eprintln!("Error al configurar MYSQLCLIENT_LIB_DIR: {}", e);
-        }
-
-        if let Err(e) = set_environment_variable("MYSQLCLIENT_VERSION", version) {
-            eprintln!("Error al configurar MYSQLCLIENT_VERSION: {}", e);
-        }
-
-        if let Err(e) = update_path_variable(&bin_dir) {
-            eprintln!("Error al actualizar el PATH: {}", e);
-        }
-
-        println!("✅ Variables de entorno actualizadas correctamente.");
-        break;
     }
 }
 
