@@ -1,5 +1,4 @@
 use clap::{Arg, ArgAction, Command};
-use regex::Regex;
 use std::collections::HashSet;
 use winreg::enums::*;
 use winreg::RegKey;
@@ -14,50 +13,49 @@ const MYSQL_VERSIONS: &[&str] = &[
 const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 fn main() {
-    let matches = Command::new("mysql_env")
-        .about("MySQL environment manager")
-        .version(APP_VERSION)
-        .subcommand_required(true)
-        .arg_required_else_help(true)
-        // Install subcommand
-        .subcommand(
-            Command::new("install")
-                .about("Install a specific MySQL version")
-                .arg(
-                    Arg::new("manual")
-                        .short('m')
-                        .long("manual")
-                        .help("Manually enter the MySQL version to install")
-                        .action(ArgAction::SetTrue),
-                )
-                .arg(
-                    Arg::new("list")
-                        .short('l')
-                        .long("list")
-                        .help("Select a version from a predefined list")
-                        .action(ArgAction::SetTrue),
-                ),
-        )
-        // Uninstall subcommand
-        .subcommand(
-            Command::new("uninstall").about("Uninstall MySQL and remove environment variables"),
-        )
-        .get_matches();
+    let matches =
+        Command::new("mysql_env")
+            .about("MySQL environment manager")
+            .version(APP_VERSION)
+            .subcommand_required(true)
+            .arg_required_else_help(true)
+            // Install subcommand
+            .subcommand(
+                Command::new("install")
+                    .about("Install a specific MySQL version")
+                    .arg(Arg::new("manual").short('m').long("manual").help(
+                        "Manually enter the MySQL version to install, or specify it directly",
+                    ))
+                    .arg(
+                        Arg::new("list")
+                            .short('l')
+                            .long("list")
+                            .help("Select a version from a predefined list")
+                            .action(ArgAction::SetTrue),
+                    ),
+            )
+            // Uninstall subcommand
+            .subcommand(
+                Command::new("uninstall").about("Uninstall MySQL and remove environment variables"),
+            )
+            .get_matches();
 
     match matches.subcommand() {
         Some(("install", install_matches)) => {
-            if install_matches.get_flag("manual") {
-                if let Some(version) = enter_version_manually() {
-                    install_version(version);
-                }
+            // if install_matches.get_flag("manual") {
+            //     if let Some(version) = enter_version_manually() {
+            //         install_version(version);
+            //     }
+            // }
+            if let Some(version) = install_matches.get_one::<String>("manual") {
+                // Aquí se pasa directamente la versión introducida con -m
+                install_version(version.to_string());
             } else if install_matches.get_flag("list") {
                 if let Some(version) = select_from_list() {
                     install_version(version);
                 }
             } else {
-                println!(
-                    "Please specify either --manual (-m) or --list (-l) to install a version."
-                );
+                println!("Please specify either --manual (-m) with a version or --list (-l) to install a version.");
             }
         }
         Some(("uninstall", _)) => {
@@ -148,24 +146,24 @@ fn select_from_list() -> Option<String> {
     Some(minor_versions[minor_index].to_string())
 }
 
-fn enter_version_manually() -> Option<String> {
-    println!("Enter the version of MySQL to configure (e.g., 8.0.37):");
+// fn enter_version_manually() -> Option<String> {
+//     println!("Enter the version of MySQL to configure (e.g., 8.0.37):");
 
-    let mut version = String::new();
-    std::io::stdin()
-        .read_line(&mut version)
-        .expect("Error reading version");
+//     let mut version = String::new();
+//     std::io::stdin()
+//         .read_line(&mut version)
+//         .expect("Error reading version");
 
-    let version = version.trim().to_string();
+//     let version = version.trim().to_string();
 
-    let re = Regex::new(r"^\d+\.\d+\.\d+$").unwrap();
-    if re.is_match(&version) {
-        Some(version)
-    } else {
-        eprintln!("Invalid version format. Expected format: x.x.x");
-        None
-    }
-}
+//     let re = Regex::new(r"^\d+\.\d+\.\d+$").unwrap();
+//     if re.is_match(&version) {
+//         Some(version)
+//     } else {
+//         eprintln!("Invalid version format. Expected format: x.x.x");
+//         None
+//     }
+// }
 
 fn desinstalar() {
     println!("Uninstalling MySQL and removing environment variables...");
