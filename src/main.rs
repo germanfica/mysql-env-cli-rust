@@ -1,4 +1,5 @@
 use regex::Regex;
+use std::collections::HashSet;
 use std::io;
 use winreg::enums::*;
 use winreg::RegKey;
@@ -41,25 +42,66 @@ fn main() {
 }
 
 fn select_from_list() -> Option<String> {
-    println!("Seleccione la versión de MySQL de la siguiente lista:");
-    for (i, version) in MYSQL_VERSIONS.iter().enumerate() {
-        println!("{}. {}", i + 1, version);
+    // Obtener la lista de versiones principales únicas
+    let mut major_versions = HashSet::new();
+    for version in MYSQL_VERSIONS {
+        let parts: Vec<&str> = version.split('.').collect();
+        if parts.len() >= 2 {
+            let major_version = format!("{}.{}", parts[0], parts[1]);
+            major_versions.insert(major_version);
+        }
     }
+    let mut major_versions_vec: Vec<String> = major_versions.into_iter().collect();
+    major_versions_vec.sort(); // Ordenar las versiones para una mejor presentación
 
-    let mut selected = String::new();
+    // Paso 1: Selección de la versión principal
+    println!("Seleccione la versión principal de MySQL de la siguiente lista:");
+    for (i, major_version) in major_versions_vec.iter().enumerate() {
+        println!("{}. {}", i + 1, major_version);
+    }
+    println!("Ingrese el número correspondiente a la versión principal:");
+
+    let mut selected_major = String::new();
     io::stdin()
-        .read_line(&mut selected)
+        .read_line(&mut selected_major)
         .expect("Error al leer la selección");
 
-    match selected.trim().parse::<usize>() {
-        Ok(index) if index > 0 && index <= MYSQL_VERSIONS.len() => {
-            Some(MYSQL_VERSIONS[index - 1].to_string()) // Convertimos &str a String
-        }
+    let major_index = match selected_major.trim().parse::<usize>() {
+        Ok(index) if index > 0 && index <= major_versions_vec.len() => index - 1,
         _ => {
             println!("Selección no válida.");
-            None
+            return None;
         }
+    };
+    let selected_major_version = &major_versions_vec[major_index];
+
+    // Paso 2: Selección de la versión específica
+    let minor_versions: Vec<&str> = MYSQL_VERSIONS
+        .iter()
+        .filter(|version| version.starts_with(selected_major_version))
+        .cloned()
+        .collect();
+
+    println!("Seleccione la versión específica de MySQL de la siguiente lista:");
+    for (i, version) in minor_versions.iter().enumerate() {
+        println!("{}. {}", i + 1, version);
     }
+    println!("Ingrese el número correspondiente a la versión específica:");
+
+    let mut selected_minor = String::new();
+    io::stdin()
+        .read_line(&mut selected_minor)
+        .expect("Error al leer la selección");
+
+    let minor_index = match selected_minor.trim().parse::<usize>() {
+        Ok(index) if index > 0 && index <= minor_versions.len() => index - 1,
+        _ => {
+            println!("Selección no válida.");
+            return None;
+        }
+    };
+    let selected_version = minor_versions[minor_index].to_string();
+    Some(selected_version)
 }
 
 fn enter_version_manually() -> Option<String> {
