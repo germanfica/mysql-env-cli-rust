@@ -38,6 +38,8 @@ fn main() {
             .subcommand(
                 Command::new("uninstall").about("Uninstall MySQL and remove environment variables"),
             )
+            // New list subcommand
+            .subcommand(Command::new("list").about("List the currently installed MySQL version"))
             .get_matches();
 
     match matches.subcommand() {
@@ -61,8 +63,24 @@ fn main() {
         Some(("uninstall", _)) => {
             desinstalar();
         }
+        Some(("list", _)) => {
+            list_installed_version();
+        }
         _ => unreachable!(),
     }
+}
+
+fn list_installed_version() {
+    match get_installed_version() {
+        Some(version) => println!("Current MySQL version installed: {}", version),
+        None => println!("No MySQL version installed."),
+    }
+}
+
+fn get_installed_version() -> Option<String> {
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let env = hkcu.open_subkey_with_flags("Environment", KEY_READ).ok()?;
+    env.get_value("MYSQLCLIENT_VERSION").ok()
 }
 
 fn install_version(version: String) {
