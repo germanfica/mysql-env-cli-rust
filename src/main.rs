@@ -1,4 +1,5 @@
 use clap::{Arg, ArgAction, Command};
+use regex::Regex;
 use std::collections::HashSet;
 use winreg::enums::*;
 use winreg::RegKey;
@@ -49,10 +50,21 @@ fn main() {
             //         install_version(version);
             //     }
             // }
+            // Si se pasa manualmente con -m
             if let Some(version) = install_matches.get_one::<String>("manual") {
                 // Aquí se pasa directamente la versión introducida con -m
-                install_version(version.to_string());
+                let version = version.to_string();
+                // Validamos el formato de la versión manual antes de instalar
+                if validate_version_format(&version) {
+                    install_version(version);
+                } else {
+                    eprintln!(
+                        "\x1b[1;31merror:\x1b[0m Invalid version format. Expected format: x.x.x"
+                    );
+                    std::process::exit(2); // Salida con código de error 2
+                }
             } else if install_matches.get_flag("list") {
+                // Si se selecciona de la lista
                 if let Some(version) = select_from_list() {
                     install_version(version);
                 }
@@ -182,6 +194,11 @@ fn select_from_list() -> Option<String> {
 //         None
 //     }
 // }
+
+fn validate_version_format(version: &str) -> bool {
+    let re = Regex::new(r"^\d+\.\d+\.\d+$").unwrap();
+    re.is_match(version)
+}
 
 fn desinstalar() {
     println!("Uninstalling MySQL and removing environment variables...");
