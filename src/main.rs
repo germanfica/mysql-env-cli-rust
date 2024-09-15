@@ -58,10 +58,14 @@ fn main() {
                 if validate_version_format(&version) {
                     install_version(version);
                 } else {
+                    // Print the error and exit.
                     eprintln!(
                         "\x1b[1;31merror:\x1b[0m Invalid version format. Expected format: x.x.x"
                     );
-                    std::process::exit(2); // Salida con código de error 2
+                    println!("\nFor more information, try '--help'.");
+                    let has_error = true;
+                    let code = exit_code(has_error);
+                    std::process::exit(code); // Salida con código de error 2
                 }
             } else if install_matches.get_flag("list") {
                 // Si se selecciona de la lista
@@ -261,3 +265,23 @@ fn clean_path_variable() -> std::io::Result<()> {
 
     env.set_value("Path", &path)
 }
+
+/// Returns the exit code that `.exit` will exit the process with.
+///
+/// When the error's kind would print to `stderr` this returns `2`,
+/// else it returns `0`.
+pub fn exit_code(use_stderr: bool) -> i32 {
+    if use_stderr {
+        USAGE_CODE
+    } else {
+        SUCCESS_CODE
+    }
+}
+
+pub(crate) const SUCCESS_CODE: i32 = 0;
+// While sysexists.h defines EX_USAGE as 64, this doesn't seem to be used much in practice but
+// instead 2 seems to be frequently used.
+// Examples
+// - GNU `ls` returns 2
+// - Python's `argparse` returns 2
+pub(crate) const USAGE_CODE: i32 = 2;
