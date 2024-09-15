@@ -4,5 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-winreg = "0.52.0"
+clap = "4.5.17"
+clap-cargo = "0.14.1"
 regex = "1.10.6"
+winreg = "0.52.0"

@@ -1,6 +1,6 @@
+use clap::{Arg, ArgAction, Command};
 use regex::Regex;
 use std::collections::HashSet;
-use std::io;
 use winreg::enums::*;
 use winreg::RegKey;
 
@@ -11,38 +11,85 @@ const MYSQL_VERSIONS: &[&str] = &[
     "8.0.35", "8.0.36", "8.0.37", "8.0.39", "8.1.0", "8.1.1", "8.2.0", "8.4.2", "9.0.1",
 ];
 
+const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
+
 fn main() {
-    // Verificar si el sistema operativo es Windows
-    if !cfg!(target_os = "windows") {
-        eprintln!("Este CLI solo es compatible con Windows.");
-        std::process::exit(1);
-    }
+    let matches = Command::new("mysql_env")
+        .about("MySQL environment manager")
+        .version(APP_VERSION)
+        .subcommand_required(true)
+        .arg_required_else_help(true)
+        // Install subcommand
+        .subcommand(
+            Command::new("install")
+                .about("Install a specific MySQL version")
+                .arg(
+                    Arg::new("manual")
+                        .short('m')
+                        .long("manual")
+                        .help("Manually enter the MySQL version to install")
+                        .action(ArgAction::SetTrue),
+                )
+                .arg(
+                    Arg::new("list")
+                        .short('l')
+                        .long("list")
+                        .help("Select a version from a predefined list")
+                        .action(ArgAction::SetTrue),
+                ),
+        )
+        // Uninstall subcommand
+        .subcommand(
+            Command::new("uninstall").about("Uninstall MySQL and remove environment variables"),
+        )
+        .get_matches();
 
-    loop {
-        println!("Seleccione una opción:");
-        println!("1. Instalar");
-        println!("2. Desinstalar");
-        println!("q. Salir");
-
-        let mut option = String::new();
-        io::stdin()
-            .read_line(&mut option)
-            .expect("Error al leer la opción");
-
-        match option.trim() {
-            "1" => instalar(),
-            "2" => desinstalar(),
-            "q" => {
-                println!("Gracias por usar este CLI. ¡Espero que vuelvas pronto!");
-                break;
+    match matches.subcommand() {
+        Some(("install", install_matches)) => {
+            if install_matches.get_flag("manual") {
+                if let Some(version) = enter_version_manually() {
+                    install_version(version);
+                }
+            } else if install_matches.get_flag("list") {
+                if let Some(version) = select_from_list() {
+                    install_version(version);
+                }
+            } else {
+                println!(
+                    "Please specify either --manual (-m) or --list (-l) to install a version."
+                );
             }
-            _ => println!("Opción no válida, por favor intente de nuevo."),
         }
+        Some(("uninstall", _)) => {
+            desinstalar();
+        }
+        _ => unreachable!(),
     }
 }
 
+fn install_version(version: String) {
+    let lib_dir = format!(r"C:\mysql-{}-winx64\lib", version);
+    let bin_dir = format!(r"C:\mysql-{}-winx64\bin", version);
+
+    if let Err(e) = set_environment_variable("MYSQLCLIENT_LIB_DIR", &lib_dir) {
+        eprintln!("Error setting MYSQLCLIENT_LIB_DIR: {}", e);
+    }
+
+    if let Err(e) = set_environment_variable("MYSQLCLIENT_VERSION", &version) {
+        eprintln!("Error setting MYSQLCLIENT_VERSION: {}", e);
+    }
+
+    if let Err(e) = update_path_variable(&bin_dir) {
+        eprintln!("Error updating PATH: {}", e);
+    }
+
+    println!(
+        "✅ MySQL {} installed and environment variables updated successfully.",
+        version
+    );
+}
+
 fn select_from_list() -> Option<String> {
-    // Obtener la lista de versiones principales únicas
     let mut major_versions = HashSet::new();
     for version in MYSQL_VERSIONS {
         let parts: Vec<&str> = version.split('.').collect();
@@ -52,206 +99,127 @@ fn select_from_list() -> Option<String> {
         }
     }
     let mut major_versions_vec: Vec<String> = major_versions.into_iter().collect();
-    major_versions_vec.sort(); // Ordenar las versiones para una mejor presentación
+    major_versions_vec.sort();
 
-    // Paso 1: Selección de la versión principal
-    println!("Seleccione la versión principal de MySQL de la siguiente lista:");
+    println!("Select the major version of MySQL from the following list:");
     for (i, major_version) in major_versions_vec.iter().enumerate() {
         println!("{}. {}", i + 1, major_version);
     }
-    println!("Ingrese el número correspondiente a la versión principal:");
+    println!("Enter the corresponding number:");
 
     let mut selected_major = String::new();
-    io::stdin()
+    std::io::stdin()
         .read_line(&mut selected_major)
-        .expect("Error al leer la selección");
+        .expect("Error reading selection");
 
     let major_index = match selected_major.trim().parse::<usize>() {
         Ok(index) if index > 0 && index <= major_versions_vec.len() => index - 1,
         _ => {
-            println!("Selección no válida.");
+            println!("Invalid selection.");
             return None;
         }
     };
     let selected_major_version = &major_versions_vec[major_index];
 
-    // Paso 2: Selección de la versión específica
     let minor_versions: Vec<&str> = MYSQL_VERSIONS
         .iter()
         .filter(|version| version.starts_with(selected_major_version))
         .cloned()
         .collect();
 
-    println!("Seleccione la versión específica de MySQL de la siguiente lista:");
+    println!("Select the specific version of MySQL:");
     for (i, version) in minor_versions.iter().enumerate() {
         println!("{}. {}", i + 1, version);
     }
-    println!("Ingrese el número correspondiente a la versión específica:");
+    println!("Enter the corresponding number:");
 
     let mut selected_minor = String::new();
-    io::stdin()
+    std::io::stdin()
         .read_line(&mut selected_minor)
-        .expect("Error al leer la selección");
+        .expect("Error reading selection");
 
     let minor_index = match selected_minor.trim().parse::<usize>() {
         Ok(index) if index > 0 && index <= minor_versions.len() => index - 1,
         _ => {
-            println!("Selección no válida.");
+            println!("Invalid selection.");
             return None;
         }
     };
-    let selected_version = minor_versions[minor_index].to_string();
-    Some(selected_version)
+    Some(minor_versions[minor_index].to_string())
 }
 
 fn enter_version_manually() -> Option<String> {
-    println!("Ingrese la versión de MySQL que desea configurar (por ejemplo, 8.0.37):");
+    println!("Enter the version of MySQL to configure (e.g., 8.0.37):");
 
     let mut version = String::new();
-    io::stdin()
+    std::io::stdin()
         .read_line(&mut version)
-        .expect("Error al leer la versión");
+        .expect("Error reading version");
 
     let version = version.trim().to_string();
 
-    // Validar el formato de la versión
-    let re = Regex::new(r"^\d+.\d+.\d+$").unwrap();
+    let re = Regex::new(r"^\d+\.\d+\.\d+$").unwrap();
     if re.is_match(&version) {
         Some(version)
     } else {
-        eprintln!("Formato de versión no válido. Debe ser en el formato x.x.x");
+        eprintln!("Invalid version format. Expected format: x.x.x");
         None
     }
 }
 
-fn instalar() {
-    loop {
-        println!("¿Desea seleccionar una versión de la lista o ingresar manualmente?");
-        println!("1. Seleccionar de la lista");
-        println!("2. Ingresar manualmente");
-        println!("q. Regresar al menú principal");
-
-        let mut choice = String::new();
-        io::stdin()
-            .read_line(&mut choice)
-            .expect("Error al leer la opción");
-
-        let choice = choice.trim();
-
-        if choice.eq_ignore_ascii_case("q") {
-            break;
-        }
-
-        let version = match choice {
-            "1" => select_from_list(), // el primer valor modifica el retorno // enter_version_manually(),
-            "2" => enter_version_manually(),
-            _ => {
-                println!("Opción no válida, por favor intente de nuevo.");
-                continue;
-            }
-        };
-
-        if let Some(version) = version {
-            let lib_dir = format!(r"C:\mysql-{}-winx64\lib", version);
-            let bin_dir = format!(r"C:\mysql-{}-winx64\bin", version);
-
-            // Actualizar las variables de entorno en Windows
-            if let Err(e) = set_environment_variable("MYSQLCLIENT_LIB_DIR", &lib_dir) {
-                eprintln!("Error al configurar MYSQLCLIENT_LIB_DIR: {}", e);
-            }
-
-            if let Err(e) = set_environment_variable("MYSQLCLIENT_VERSION", &version) {
-                eprintln!("Error al configurar MYSQLCLIENT_VERSION: {}", e);
-            }
-
-            if let Err(e) = update_path_variable(&bin_dir) {
-                eprintln!("Error al actualizar el PATH: {}", e);
-            }
-
-            println!("✅ Variables de entorno actualizadas correctamente.");
-            break;
-        }
-    }
-}
-
 fn desinstalar() {
-    loop {
-        println!("¿Está seguro que desea desinstalar? (y/n):");
+    println!("Uninstalling MySQL and removing environment variables...");
 
-        let mut confirmacion = String::new();
-        io::stdin()
-            .read_line(&mut confirmacion)
-            .expect("Error al leer la confirmación");
-
-        match confirmacion.trim().to_lowercase().as_str() {
-            "y" => {
-                println!("Desinstalando...");
-
-                // Borrar las variables de entorno
-                if let Err(e) = delete_environment_variable("MYSQLCLIENT_LIB_DIR") {
-                    eprintln!("Error al eliminar MYSQLCLIENT_LIB_DIR: {}", e);
-                }
-
-                if let Err(e) = delete_environment_variable("MYSQLCLIENT_VERSION") {
-                    eprintln!("Error al eliminar MYSQLCLIENT_VERSION: {}", e);
-                }
-
-                if let Err(e) = clean_path_variable() {
-                    eprintln!("Error al limpiar el PATH: {}", e);
-                }
-
-                println!("✅ Variables de entorno eliminadas correctamente.");
-                break;
-            }
-            "n" => {
-                println!("Desinstalación cancelada.");
-                break;
-            }
-            _ => println!("Opción no válida, por favor ingrese 'y' (sí) o 'n' (no)."),
-        }
+    if let Err(e) = delete_environment_variable("MYSQLCLIENT_LIB_DIR") {
+        eprintln!("Error deleting MYSQLCLIENT_LIB_DIR: {}", e);
     }
+
+    if let Err(e) = delete_environment_variable("MYSQLCLIENT_VERSION") {
+        eprintln!("Error deleting MYSQLCLIENT_VERSION: {}", e);
+    }
+
+    if let Err(e) = clean_path_variable() {
+        eprintln!("Error cleaning PATH: {}", e);
+    }
+
+    println!("✅ MySQL environment variables removed.");
 }
 
-fn set_environment_variable(var: &str, value: &str) -> io::Result<()> {
+fn set_environment_variable(var: &str, value: &str) -> std::io::Result<()> {
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let env = hkcu.open_subkey_with_flags("Environment", KEY_WRITE)?;
-
     env.set_value(var, &value)
 }
 
-fn delete_environment_variable(var: &str) -> io::Result<()> {
+fn delete_environment_variable(var: &str) -> std::io::Result<()> {
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let env = hkcu.open_subkey_with_flags("Environment", KEY_WRITE)?;
-
     env.delete_value(var)
 }
 
-fn update_path_variable(new_bin_dir: &str) -> io::Result<()> {
+fn update_path_variable(new_bin_dir: &str) -> std::io::Result<()> {
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let env = hkcu.open_subkey_with_flags("Environment", KEY_READ | KEY_WRITE)?;
 
     let mut path: String = env.get_value("Path")?;
 
-    // Eliminar todas las versiones anteriores de MySQL en el PATH
     path = path
         .split(';')
         .filter(|dir| !dir.contains("mysql-"))
         .collect::<Vec<_>>()
         .join(";");
 
-    // Agregar la nueva versión de MySQL al PATH
     path = format!("{};{}", path, new_bin_dir);
 
     env.set_value("Path", &path)
 }
 
-fn clean_path_variable() -> io::Result<()> {
+fn clean_path_variable() -> std::io::Result<()> {
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let env = hkcu.open_subkey_with_flags("Environment", KEY_READ | KEY_WRITE)?;
 
     let mut path: String = env.get_value("Path")?;
 
-    // Eliminar todas las versiones de MySQL en el PATH
     path = path
         .split(';')
         .filter(|dir| !dir.contains("mysql-"))
